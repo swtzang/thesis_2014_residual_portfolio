@@ -64,6 +64,7 @@ library(rbenchmark)
 library(dplyr)
 library(timetk)
 library(tidyverse)
+library(tidyquant)
 
 #=========================================================================
 # The following part is about importing raw data and restructuring data
@@ -78,77 +79,78 @@ library(tidyverse)
 m.price = read_tsv("../thesis_2014/data/m_close_1991_2013.txt")
 m.price <- m.price %>% 
            rename(id = 證券代碼, name = 簡稱, date = 年月, price = `收盤價(元)_月`) %>% 
-           mutate(id = as.character(id)) %>% 
+           mutate(id = as.character(id)) %>%
+           mutate(date = as.yearmon(as.character(date), '%Y%m')) %>%
+           mutate(date = as.Date(date, frac=1)) %>% 
            select(id, date, price) %>% 
            spread(key = id, value = price)
           
 dim(m.price)
-# use dcast to reorder dataframe by date;
-mprice.reorder = dcast(m.price,date~id)
-head(mprice.reorder)
-tail(mprice.reorder[,1])
-class(mprice.reorder)
-dim(mprice.reorder)
-n_month = dim(mprice.reorder)[1]
-mon.seq1 = seq(as.Date("1991-02-01"), length=n_month, by="1 month")-1 
-mprice.reorder["date"] = mon.seq1
+#
+head(m.price)
 #=====================================================
 # write out data
-write.csv(mprice.reorder, "../thesis_2014/data/m_close_1991_2013_reorder.csv")
+write.csv(m.price, "../thesis_2014/data/m_close_1991_2013_reorder.csv")
 #=====================================================
 #====================================================
 # import Fama French 4 factors monthly return series;
 # code in TEJ: Y9999:
 #====================================================
-ff4f.tw = read.table("D:/?Ȭw?j?ǺӤh?Z???ɽפ?/data/FF3F_1990_2013_month_Y9999.txt")
-ff4f.tw = ff4f.tw[,c(-1,-2)]
-ff4f.tw = ff4f.tw[-1,]
-colnames(ff4f.tw)=c("date","market","size","hml","momentum","RF") 
+ff4f.tw = read_tsv("../thesis_2014/data/FF3F_1990_2013_month_Y9999.txt")
+ff4f.tw <- ff4f.tw %>% 
+           set_names(c("id", "name", "date", "Mkt.rf","SMB","HML","MOM","RF")) %>% 
+           select(-id, -name) %>%
+           mutate(date = as.yearmon(as.character(date), '%Y%m')) %>%
+           mutate(date = as.Date(date, frac=1)) %>%
+           mutate(RF = RF/12) %>% 
+           tk_xts(date_var = date)/100
+           
 #hml:high-minus-low book value
-n_month = dim(ff4f.tw)[1]
-mon.seq = seq(as.Date("1990-02-01"), length=n_month, by="1 month") - 1
-head(ff4f.tw)
-ff4f.tw["date"] = mon.seq
 #=====================================================
 # write out data 
-write.csv(ff4f.tw, "D:/?Ȭw?j?ǺӤh?Z???ɽפ?/data/ff4f.csv")
+write.csv(as.data.frame(ff4f.tw), "../thesis_2014/data/ff4f.csv")
 #=====================================================
 
 #=======================================
 # import monthly close TWSE index 1990-2013
 #========================================
-twse = read.table("D:/?Ȭw?j?ǺӤh?Z???ɽפ?/data/monthly data/m_close_twse_1990_2013.txt")
-twse = twse[-1, c(-1,-2)]
-twse[,1] = mon.seq
+twse = read_tsv("../thesis_2014/data/m_close_twse_1990_2013.txt")
+twse <-  twse %>% 
+         set_names(c('id', 'name', 'date', 'price')) %>% 
+         select(-id, -name) %>% 
+         mutate(date = as.yearmon(as.character(date), '%Y%m')) %>%
+         mutate(date = as.Date(date, frac=1)) %>% 
+         tk_xts(date_var = date)
+
 #===========================================
 #write out data
 #===========================================
-write.csv(twse, "D:/?Ȭw?j?ǺӤh?Z???ɽפ?/data/monthly data/m_close_twse_1990_2013.csv")
+write.csv(as.data.frame(twse), "../thesis_2014/data/m_close_twse_1990_2013.csv")
 
 #================================
 # import daily log returns;
 #================================
-daily.ret = read.table("D:/?Ȭw?j?ǺӤh?Z???ɽפ?/data/daily data/daily_lnret_19900101_20131231.txt")
-daily.ret = daily.ret[,-2]
-daily.ret = daily.ret[-1,]
-head(daily.ret,10)
-colnames(daily.ret) = c("id","date","ret")
-dim(daily.ret)
+#daily.ret = read.table("D:/?Ȭw?j?ǺӤh?Z???ɽפ?/data/daily data/daily_lnret_19900101_20131231.txt")
+#daily.ret = daily.ret[,-2]
+#daily.ret = daily.ret[-1,]
+#head(daily.ret,10)
+#colnames(daily.ret) = c("id","date","ret")
+#dim(daily.ret)
 # use dcast to reorder dataframe by date;
-ret.reorder = dcast(daily.ret,date~id)
-head(ret.reorder)
-class(ret.reorder)
-dim(ret.reorder)
+#ret.reorder = dcast(daily.ret,date~id)
+#head(ret.reorder)
+#class(ret.reorder)
+#dim(ret.reorder)
 # ret.reorder[is.na(ret.reorder)] =0
 #=====================================================
 #write out data
-write.csv(ret.reorder, "D:/?Ȭw?j?ǺӤh?Z???ɽפ?/data/daily data/ret_day.csv")
+#write.csv(ret.reorder, "D:/?Ȭw?j?ǺӤh?Z???ɽפ?/data/daily data/ret_day.csv")
 #=====================================================
 
 #============================
 # import daily close price
 #=============================
-daily.price = read.table("D:/?Ȭw?j?ǺӤh?Z???ɽפ?/data/daily data/daily_close_price_19900101_20131231.txt")
+#daily.price = read.table("D:/?Ȭw?j?ǺӤh?Z???ɽפ?/data/daily data/daily_close_price_19900101_20131231.txt")
 daily.price = daily.price[,-2]
 daily.price = daily.price[-1,]
 head(daily.price,10)
@@ -219,11 +221,14 @@ head(wk.price.xts)
 # Import monthly data
 #==================================================
 #ret.tw=read.csv("D:/?Ȭw?j?ǺӤh?Z???ɽפ?/data/monthly data/m_ln_ret_1990_2013_reorder.csv", header=TRUE)
-price.tw = read.csv("D:/?Ȭw?j?ǺӤh?Z???ɽפ?/data/monthly data/m_close_1991_2013_reorder.csv", header=TRUE)
+price.tw = read_csv("../thesis_2014/data/m_close_1991_2013_reorder.csv")
+price.tw <- price.tw %>% select(-1)
 #price.tw1 = na.omit(price.tw)
 # Fama-French 3 factor returns
-ff4f.tw = read.csv("D:/?Ȭw?j?ǺӤh?Z???ɽפ?/data/ff4f.csv", header=TRUE)
-twse = read.csv("D:/?Ȭw?j?ǺӤh?Z???ɽפ?/data/monthly data/m_close_twse_1990_2013.csv", header=TRUE)
+ff4f.tw <- read_csv("../thesis_2014/data/ff4f.csv") 
+ff4f.tw <- ff4f.tw %>% rename(date = X1)
+twse = read_csv("../thesis_2014/data/m_close_twse_1990_2013.csv")
+twse <- twse %>% rename(date = X1)
 #==============================
 # convert data to xts, zoo 
 #==============================
